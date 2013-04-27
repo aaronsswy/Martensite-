@@ -1,0 +1,3520 @@
+   #include <stdio.h>
+   #include <stdlib.h>
+   #include <string.h>
+   #include <cmath>
+   #include <time.h>
+   #include <complex>
+   #include <iostream>
+   #include <fstream>
+   #include<iomanip>
+   using std::ofstream;
+   using std::endl;
+   using std::setw;
+   #define Nx 4
+   #define Ny 4
+   #define Nz 4
+   #define GN Nx*Ny*Nz    //Grid points
+   #define dt  0.01        //Time step
+   #define Nt1 5        //First step of calculation - beginning  
+   #define Nt2 5   //Second step of calculation - including noise
+   #define Nt3 5        //Third step of calculation without noise
+   #define Nt4 5     //Fourth step of calculation without noise-normal proceeding
+   #define Np 9
+   #define M  10
+   #define N  10    //第二步做100个循环
+ struct complex
+  {
+		double re;
+		double im;
+	};
+ void mgrns(double u,double g,int *r,int n,double a[])
+
+  { int i,k,m;
+    double s,w,v,t;
+    s=65536.0; w=2053.0; v=13849.0;
+    for (k=0; k<=n-1; k++)
+      { t=0.0;
+        for (i=1; i<=12; i++)
+          { *r=(*r)*w+v; m=(int)(*r/s);
+            *r=*r-m*s; t=t+(*r)/s;
+          }
+        a[k]=u+g*(t-6.0);
+      }
+    return;
+  } 
+
+void kfft(double pr[],double pi[],int n,int k,double fr[], double fi[],int l,int il)
+  { int it,m,is,i,j,nv,l0;
+    double p,q,s,vr,vi,poddr,poddi;
+    for (it=0; it<=n-1; it++)
+      { m=it; is=0;
+        for (i=0; i<=k-1; i++)
+          { j=m/2; is=2*is+(m-2*j); m=j;}
+        fr[it]=pr[is]; fi[it]=pi[is];
+      }
+    pr[0]=1.0; pi[0]=0.0;
+    p=6.283185306/(1.0*n);
+    pr[1]=cos(p); pi[1]=-sin(p);
+    if (l!=0) pi[1]=-pi[1];
+    for (i=2; i<=n-1; i++)
+      { p=pr[i-1]*pr[1]; q=pi[i-1]*pi[1];
+        s=(pr[i-1]+pi[i-1])*(pr[1]+pi[1]);
+        pr[i]=p-q; pi[i]=s-p-q;
+      }
+    for (it=0; it<=n-2; it=it+2)
+      { vr=fr[it]; vi=fi[it];
+        fr[it]=vr+fr[it+1]; fi[it]=vi+fi[it+1];
+        fr[it+1]=vr-fr[it+1]; fi[it+1]=vi-fi[it+1];
+      }
+    m=n/2; nv=2;
+    for (l0=k-2; l0>=0; l0--)
+      { m=m/2; nv=2*nv;
+        for (it=0; it<=(m-1)*nv; it=it+nv)
+          for (j=0; j<=(nv/2)-1; j++)
+            { p=pr[m*j]*fr[it+j+nv/2];
+              q=pi[m*j]*fi[it+j+nv/2];
+              s=pr[m*j]+pi[m*j];
+              s=s*(fr[it+j+nv/2]+fi[it+j+nv/2]);
+              poddr=p-q; poddi=s-p-q;
+              fr[it+j+nv/2]=fr[it+j]-poddr;
+              fi[it+j+nv/2]=fi[it+j]-poddi;
+              fr[it+j]=fr[it+j]+poddr;
+              fi[it+j]=fi[it+j]+poddi;
+            }
+      }
+    if (l!=0)
+      for (i=0; i<=n-1; i++)
+        { fr[i]=fr[i]/(1.0*n);
+          fi[i]=fi[i]/(1.0*n);
+        }
+    if (il!=0)
+      for (i=0; i<=n-1; i++)
+        { pr[i]=sqrt(fr[i]*fr[i]+fi[i]*fi[i]);
+          if (fabs(fr[i])<0.000001*fabs(fi[i]))
+            { if ((fi[i]*fr[i])>0) pi[i]=90.0;
+              else pi[i]=-90.0;
+            }
+          else
+            pi[i]=atan(fi[i]/fr[i])*360.0/6.283185306;
+        }
+    return;
+  }
+
+
+
+
+///////////////THE FIRST STEP/////////////////
+///////////////THE FIRST STEP/////////////////
+///////////////THE FIRST STEP/////////////////
+///////////////THE FIRST STEP/////////////////
+void Pro1(double  LOP4d11r[Nt1][Nx][Ny][Nz],double LOP4d12r[Nt1][Nx][Ny][Nz],double LOP4d13r[Nt1][Nx][Ny][Nz],complex LOP4d11c[Nt1][Nx][Ny][Nz],complex LOP4d12c[Nt1][Nx][Ny][Nz],complex LOP4d13c[Nt1][Nx][Ny][Nz],
+		  double  LOP4d21r[Nt2][Nx][Ny][Nz],double LOP4d22r[Nt2][Nx][Ny][Nz], double LOP4d23r[Nt2][Nx][Ny][Nz],complex LOP4d21c[Nt2][Nx][Ny][Nz],complex LOP4d22c[Nt2][Nx][Ny][Nz],complex LOP4d23c[Nt2][Nx][Ny][Nz])
+{   ////////// Beginning of the first step with noise////////
+////////// Beginning of the first step with noise//////////////
+////////// Beginning of the first step with noise//////////////////////
+////////// Beginning of the first step with noise/////////////////////////////
+
+// Noise-Gauss Distribution //                   (1)
+
+// FFT-transformation  //                        (1)
+
+ //Noise of variant 1                     (1)
+	int i,j,k,t;
+ 	int r;
+    int ki,kj,kk;
+	double ri,rj,rk;
+ 
+	 double u,g;
+	 double Mol,Moll;
+	 double dm=0.1, e=0.3,v=0.16, GE=0.13,AT=0.6432, BT=2.84, CT=1.33;
+	   
+	 double a11r[GN],a11i[GN],in11r[GN],in11i[GN];
+	 double a12r[GN],a12i[GN],in12r[GN],in12i[GN];
+	 double a13r[GN],a13i[GN],in13r[GN],in13i[GN];
+	 complex Noise4df11[Nt1][Nx][Ny][Nz],Noise4df12[Nt1][Nx][Ny][Nz],Noise4df13[Nt1][Nx][Ny][Nz];
+	 double  FE4d11r[Nt1][Nx][Ny][Nz], FE4d12r[Nt1][Nx][Ny][Nz], FE4d13r[Nt1][Nx][Ny][Nz];
+	 complex FE4d11c[Nt1][Nx][Ny][Nz], FE4d12c[Nt1][Nx][Ny][Nz], FE4d13c[Nt1][Nx][Ny][Nz];
+	 double  DFE4d11r[Nt1][Nx][Ny][Nz],  DFE4d12r[Nt1][Nx][Ny][Nz],  DFE4d13r[Nt1][Nx][Ny][Nz];
+	 complex DFE4d11c[Nt1][Nx][Ny][Nz],  DFE4d12c[Nt1][Nx][Ny][Nz],  DFE4d13c[Nt1][Nx][Ny][Nz];
+	 double FE1d11r[GN],FE1d11i[GN],FE1dF11r[GN],FE1dF11i[GN];
+	 double DFE1d11r[GN], DFE1d11i[GN],DFE1dF11r[GN], DFE1dF11i[GN];
+	 double LOP1d11rr[GN],LOP1d11ri[GN],LOP1dF11rr[GN],LOP1dF11ri[GN];
+	 double FE1d12r[GN],FE1d12i[GN],FE1dF12r[GN],FE1dF12i[GN];
+	 double DFE1d12r[GN], DFE1d12i[GN],DFE1dF12r[GN], DFE1dF12i[GN];
+	 double LOP1d12rr[GN],LOP1d12ri[GN],LOP1dF12rr[GN],LOP1dF12ri[GN];
+	 double FE1d13r[GN],FE1d13i[GN],FE1dF13r[GN],FE1dF13i[GN];
+	 double DFE1d13r[GN], DFE1d13i[GN],DFE1dF13r[GN], DFE1dF13i[GN];
+	 double LOP1d13rr[GN],LOP1d13ri[GN],LOP1dF13rr[GN],LOP1dF13ri[GN];
+	 double LOP1d11r[GN], LOP1d11i[GN], LOP1dF11r[GN], LOP1dF11i[GN];
+	 double LOP1d12r[GN], LOP1d12i[GN], LOP1dF12r[GN], LOP1dF12i[GN];
+	 double LOP1d13r[GN], LOP1d13i[GN], LOP1dF13r[GN], LOP1dF13i[GN];
+	r=6; u=0.0; g=1.0;  
+
+	 for (t=1;t<=Nt1;t++)
+	{
+
+
+	  mgrns(u,g,&r,GN,a11r);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	    
+	 a11i[i*Ny*Nz+j*Nz+k]=0.00;
+
+	}
+	}
+
+
+	// FFT transformation [1]                 (1)
+
+	 kfft(a11r,a11i,GN,Np,in11r,in11i,0,1);
+
+
+
+	//to get re [1]                           (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	  Noise4df11[t][i][j][k].re=20*in11r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+
+	//to get im [1]                            (1)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		Noise4df11[t][i][j][k].im=20*in11i[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+	}   
+
+	 
+	//Noise of variant 2                        (1)
+	 
+	 for (t=1;t<=Nt1;t++)
+	{
+	   mgrns(u,g,&r,GN,a12r);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	    
+	 a12i[i*Ny*Nz+j*Nz+k]=0.0;
+
+	}
+	}
+
+	// FFT transformation [2]                   (1)
+
+	 kfft(a12r,a12i,GN,Np,in12r,in12i,0,0);
+
+	//to get re [2]                             (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	  Noise4df12[t][i][j][k].re=20*in12r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+
+	//to get im [2]                              (1)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		Noise4df12[t][i][j][k].im=20*in12i[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+	}   
+
+
+	//Noise of variant 3                          (1)
+	 
+	 for (t=1;t<=Nt1;t++)
+	{
+	   mgrns(u,g,&r,GN,a13r);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	    
+	 a13i[i*Ny*Nz+j*Nz+k]=0.0;
+
+	}
+	}
+
+	// FFT transformation [3]                     (1)
+
+	 kfft(a13r,a13i,GN,Np,in13r,in13i,0,0);
+
+	//to get re [3]                               (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	  Noise4df13[t][i][j][k].re=20*in13r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+
+	//to get im [3]                             (1)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		Noise4df13[t][i][j][k].im=20*in13i[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+	}   
+
+
+	 // output testing [1][2][3]                (1)
+
+	 /*
+	 printf("--------------Noise4df11[Nt1]-------------testing-------------------\n");
+	 printf("\n");
+
+	 
+	  for (t=1;t<=Nt1; t++)
+	{for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	 //  printf("%10.6f    ",  Noise4df11[Nt1][i][j][k].re);
+	 // printf("%10.6f    ",  Noise4df11[Nt1][i][j][k].im);
+
+	//  printf("%10.6f    ",  Noise4df12[Nt1][i][j][k].re);
+	//  printf("%10.6f    ",  Noise4df12[Nt1][i][j][k].im);
+
+	//  printf("%10.6f    ",  Noise4df13[t][i][j][k].re);
+	  printf("%10.6f    ",  Noise4df13[t][i][j][k].im);
+
+		printf("\n");
+		  }
+		printf("\n");
+		}
+	printf("\n");
+	}
+	printf("\n");
+	*/
+	 
+
+	//t=1, initializing;                          (1)
+	//equation of motion (Only including noise);  (1)
+
+	 
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)  ri=i, rj=i, rk=i;
+			  else  ri=i-Nx, rj=i-Nx, rk=i-Nx;
+
+	Mol=pow(dm,2)*(pow(ri,2)+pow(rj,2)+pow(rk,2));
+
+	}
+	}
+
+
+	//equation of motion for variant 1 only with noise  (1)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	LOP4d11c[1][i][j][k].re=dt*Noise4df11[1][i][j][k].re/(1.0+dt*e*Mol); 
+
+	}
+	}
+
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	LOP4d11c[1][i][j][k].im=dt*Noise4df11[1][i][j][k].im/(1.0+dt*e*Mol); 
+
+	}
+	}
+
+	//equation of motion for variant 2 only with noise  (1)
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	LOP4d12c[1][i][j][k].re=dt*Noise4df12[1][i][j][k].re/(1.0+dt*e*Mol); 
+
+	}
+	}
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	LOP4d12c[1][i][j][k].im=dt*Noise4df12[1][i][j][k].im/(1.0+dt*e*Mol); 
+
+	}
+	}
+
+	//equation of motion for variant 3 only with noise   (1)
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	LOP4d13c[1][i][j][k].re=dt*Noise4df13[1][i][j][k].re/(1.0+dt*e*Mol); 
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	 LOP4d13c[1][i][j][k].im=dt*Noise4df13[1][i][j][k].im/(1.0+dt*e*Mol); 
+
+	}
+	}
+
+	//LOP output testing only with noise                  (1)
+	/*
+	 printf(" ---------LOP4d11c[1]------testing only with noise--------\n");
+	 printf("\n");
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	//   printf("%10.6f    ",  LOP4d11c[1][i][j][k].re);
+	//   printf("%10.6f    ",  LOP4d11c[1][i][j][k].im);
+
+	//   printf("%10.6f    ",  LOP4d12c[1][i][j][k].re);
+	//   printf("%10.6f    ",  LOP4d12c[1][i][j][k].im);
+
+	//   printf("%10.6f    ",  LOP4d13c[1][i][j][k].re);
+	//   printf("%10.6f    ",  LOP4d13c[1][i][j][k].im);
+
+	 
+		printf("\n");
+	}
+	printf("\n");
+	}
+	printf("\n");
+
+	*/
+
+
+
+	//FFT for LOP4d11c, LOP4d12c and LOP4d13c at t=1  (1)
+
+
+	// [1] LOP4d11c at t=1                            (1)
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d11r[i*Ny*Nz+j*Nz+k]=LOP4d11c[1][i][j][k].re;
+	 
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d11i[i*Ny*Nz+j*Nz+k]=LOP4d11c[1][i][j][k].im;
+	 
+	}
+	}
+
+	kfft(LOP1d11r,LOP1d11i,GN,Np,LOP1dF11r,LOP1dF11i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP4d11r[1][i][j][k]=LOP1dF11r[i*Ny*Nz+j*Nz+k];
+	 
+	}
+	}
+
+	// [2] LOP4d12c at t=1                              (1)
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d12r[i*Ny*Nz+j*Nz+k]=LOP4d12c[1][i][j][k].re;
+	 
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d12i[i*Ny*Nz+j*Nz+k]=LOP4d12c[1][i][j][k].im;
+	 
+	}
+	}
+
+	kfft(LOP1d12r,LOP1d12i,GN,Np,LOP1dF12r,LOP1dF12i,1,1);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP4d12r[1][i][j][k]=LOP1dF12r[i*Ny*Nz+j*Nz+k];
+	 
+	}
+	}
+
+
+	//[3] LOP4d13c at t=1                               (1)
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d13r[i*Ny*Nz+j*Nz+k]=LOP4d13c[1][i][j][k].re;
+	 
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d13i[i*Ny*Nz+j*Nz+k]=LOP4d13c[1][i][j][k].im;
+	 
+	}
+	}
+
+	kfft(LOP1d13r,LOP1d13i,GN,Np,LOP1dF13r,LOP1dF13i,1,1);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP4d13r[1][i][j][k]=LOP1dF13r[i*Ny*Nz+j*Nz+k];
+	 
+	}
+	}
+
+
+
+	//LOP output testing only with noise at t=1         (1)
+	/*
+	printf("--------LOP for Variant1,2,3 at t=1 only with noise---------testing--------\n");
+	printf("\n");
+
+	printf("--------LOP for Variant1 at t=1 --------\n");
+	printf("\n");
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  printf("%10.6f    ",  LOP4d11r[1][i][j][k]);
+		  printf("\n");
+
+	}
+	printf("\n");
+	}
+	printf("\n");
+
+
+	printf("--------LOP for Variant2 at t=1 --------\n");
+	printf("\n");
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  printf("%10.6f    ",  LOP4d12r[1][i][j][k]);
+		  printf("\n");
+
+	}
+	printf("\n");
+	}
+	printf("\n");
+
+
+	printf("--------LOP for Variant3 at t=1 --------\n");
+	printf("\n");
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  printf("%10.6f    ",  LOP4d13r[1][i][j][k]);
+		  printf("\n");
+
+	}
+	printf("\n");
+	}
+	printf("\n");
+	*/
+
+
+	//t>=2, start calculation                            (1)
+
+	 for (t=2; t<=Nt1+1; t++) 
+
+	{	
+
+	//Variant 1;                                         (1)
+
+	//FE Cal. [1]                                        (1)
+	   
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	        
+		  FE4d11c[t-1][i][j][k].re=4.0*GE*((3*pow(ri,2)/Moll+1)*LOP4d11c[t-1][i][j][k].re
+			  +(3.0*pow(rk,2)/Moll-2)*LOP4d12c[t-1][i][j][k].re
+			  +(3.0*pow(rj,2)/Moll-2)*LOP4d13c[t-1][i][j][k].re)
+			  -2.0*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*(LOP4d11c[t-1][i][j][k].re)
+			  +(3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*(LOP4d12c[t-1][i][j][k].re)+(3*pow(ri,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d13c[t-1][i][j][k].re);
+
+	}
+	}
+
+
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	          
+		  FE4d11c[t-1][i][j][k].im=4*GE*((3*pow(ri,2)/Moll+1)*LOP4d11c[t-1][i][j][k].im
+			  +(3*pow(rk,2)/Moll-2)*LOP4d12c[t-1][i][j][k].im
+			  +(3*pow(rj,2)/Moll-2)*LOP4d13c[t-1][i][j][k].im)
+			  -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d11c[t-1][i][j][k].im
+			  +(3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d12c[t-1][i][j][k].im+(3*pow(ri,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d13c[t-1][i][j][k].im);
+
+			  
+			
+	}
+	}
+
+
+	//FFT Trans for FE4d11r[t-1][i][j][k] [1]           (1)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d11r[i*Ny*Nz+j*Nz+k]=FE4d11c[t-1][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d11i[i*Ny*Nz+j*Nz+k]=FE4d11c[t-1][i][j][k].im;
+
+	}
+	}
+
+
+	kfft(FE1d11r,FE1d11i,GN,Np,FE1dF11r,FE1dF11i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d11r[t-1][i][j][k]=FE1dF11r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [1]                          (1)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	          
+		  DFE4d11r[t-1][ki][kj][kk]=AT*LOP4d11r[t-1][ki][kj][kk]-BT*pow(LOP4d11r[t-1][ki][kj][kk],2)+CT*pow(LOP4d11r[t-1][ki][kj][kk],3)
+									+CT*LOP4d11r[t-1][ki][kj][kk]*pow(LOP4d12r[t-1][ki][kj][kk],2)+CT*LOP4d11r[t-1][ki][kj][kk]*pow(LOP4d13r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d11r[t-1][ki][kj][kk]-6*GE*LOP4d12r[t-1][ki][kj][kk]-6*GE*LOP4d13r[t-1][ki][kj][kk]
+									-FE4d11r[t-1][ki][kj][kk];
+	}
+	}
+
+
+	// FFT trans for DFE4d11c[t-1][ki][kj][kk]            (1)
+	 
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d11r[ki*Ny*Nz+kj*Nz+kk]=DFE4d11r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d11i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d11r,DFE1d11i,GN,Np,DFE1dF11r,DFE1dF11i,0,0);
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d11c[t-1][ki][kj][kk].re=DFE1dF11r[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d11c[t-1][ki][kj][kk].im=DFE1dF11i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+	 
+	// Equa. of motion [1]                               (1)
+
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+			Moll=pow(dm,2)*(pow(ri,2)+pow(rj,2)+pow(rk,2));
+	 
+	}
+	}
+
+
+
+
+	//equation -re-[1]                                   (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d11c[t][i][j][k].re=(LOP4d11c[t-1][i][j][k].re-dt*DFE4d11c[t-1][i][j][k].re+dt*Noise4df11[t][i][j][k].re)/(1.0+dt*e*Moll);
+
+	}
+	}
+
+
+
+	//equation -im-[1]                                   (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d11c[t][i][j][k].im=(LOP4d11c[t-1][i][j][k].im-dt*DFE4d11c[t-1][i][j][k].im+dt*Noise4df11[t][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+	}
+	}
+
+
+
+
+	//FFT trans for LOP4d11r[t][i][j][k]                 (1)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d11rr[i*Ny*Nz+j*Nz+k]=LOP4d11c[t][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d11ri[i*Ny*Nz+j*Nz+k]=LOP4d11c[t][i][j][k].im;
+
+	}
+	}
+
+	//FFT trans-LOP1    (1)
+	kfft(LOP1d11rr,LOP1d11ri,GN,Np,LOP1dF11rr,LOP1dF11ri,1,1);
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d11r[t][ki][kj][kk]=LOP1dF11rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+
+	}
+	}
+
+
+	//Ending of variant 1////////////// 
+	//Ending of variant 1///////////// 
+	//Ending of variant 1/////////////                    (1)
+
+
+
+	//Variant 2;                                          (1)
+
+	//FE Cal. [2]
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	          
+		  
+	  FE4d12c[t-1][i][j][k].re=4*GE*((3*pow(rk,2)/Moll-2)*LOP4d11c[t-1][i][j][k].re
+			 +(3*pow(rj,2)/Moll+1)*LOP4d12c[t-1][i][j][k].re
+			 +(3*pow(ri,2)/Moll-2)*LOP4d13c[t-1][i][j][k].re)
+			 -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d11c[t-1][i][j][k].re
+			 +(3*pow(rj,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d12c[t-1][i][j][k].re+(3*pow(rj,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d13c[t-1][i][j][k].re);
+
+
+	}
+	}
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	          
+	 
+	FE4d12c[t-1][i][j][k].im=4*GE*((3*pow(rk,2)/Moll-2)*LOP4d11c[t-1][i][j][k].im
+			 +(3*pow(rj,2)/Moll+1)*LOP4d12c[t-1][i][j][k].im
+			 +(3*pow(ri,2)/Moll-2)*LOP4d13c[t-1][i][j][k].im)
+			 -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d11c[t-1][i][j][k].im
+			 +(3*pow(rj,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d12c[t-1][i][j][k].im+(3*pow(rj,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d13c[t-1][i][j][k].im);
+
+	}
+	}
+
+
+	//FFT Trans for FE4d12c and FE4d12r [2]                 (1)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d12r[i*Ny*Nz+j*Nz+k]=FE4d12c[t-1][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d12i[i*Ny*Nz+j*Nz+k]=FE4d12c[t-1][i][j][k].im;
+
+	}
+	}
+
+
+	kfft(FE1d12r,FE1d12i,GN,Np,FE1dF12r,FE1dF12i,1,1);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d12r[t-1][i][j][k]=FE1dF12r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [2]                           (1)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	 DFE4d12r[t-1][ki][kj][kk]=AT*LOP4d12r[t-1][ki][kj][kk]-BT*pow(LOP4d12r[t-1][ki][kj][kk],2)+CT*pow(LOP4d12r[t-1][ki][kj][kk],3)
+									+CT*LOP4d12r[t-1][ki][kj][kk]*pow(LOP4d11r[t-1][ki][kj][kk],2)+CT*LOP4d12r[t-1][ki][kj][kk]*pow(LOP4d13r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d12r[t-1][ki][kj][kk]-6*GE*LOP4d11r[t-1][ki][kj][kk]-6*GE*LOP4d13r[t-1][ki][kj][kk]
+									-FE4d12r[t-1][ki][kj][kk];
+	 
+	}
+	}
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d12r[ki*Ny*Nz+kj*Nz+kk]=DFE4d12r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d12i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d12r,DFE1d12i,GN,Np,DFE1dF12r,DFE1dF12i,0,0);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		  DFE4d12c[t-1][ki][kj][kk].re=DFE1dF12r[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		  DFE4d12c[t-1][ki][kj][kk].im=DFE1dF12i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+
+
+	// Equa. of motion [2]                                (1)
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+			Moll=pow(dm,2)*(pow(ri,2)+pow(rj,2)+pow(rk,2));
+	 
+	}
+	}
+
+
+	//equation -re-[2]                                   (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d12c[t][i][j][k].re=(LOP4d12c[t-1][i][j][k].re-dt*DFE4d12c[t-1][i][j][k].re+dt*Noise4df12[t][i][j][k].re)/(1.0+dt*e*Moll);
+	    
+
+	}
+	}
+
+	 
+	//equation -im-[2]                                    (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d12c[t][i][j][k].im=(LOP4d12c[t-1][i][j][k].im-dt*DFE4d12c[t-1][i][j][k].im+dt*Noise4df12[t][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+	 
+	}
+	}
+
+
+
+	//FFT trans for LOP4d12r [2]                           (1)
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d12rr[i*Ny*Nz+j*Nz+k]=LOP4d12c[t][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d12ri[i*Ny*Nz+j*Nz+k]=LOP4d12c[t][i][j][k].im;
+
+	}
+	}
+
+
+	kfft(LOP1d12rr,LOP1d12ri,GN,Np,LOP1dF12rr,LOP1dF12ri,1,1);
+
+
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	   LOP4d12r[t][ki][kj][kk]=LOP1dF12rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+
+
+	//End of calculation for Variant 2                   (1)
+
+
+	//Variant 3;                                         (1)
+	//FE Cal. [3]
+
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+
+	}
+	}
+
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	        
+	FE4d13c[t-1][i][j][k].re=4*GE*((3*pow(rj,2)/Moll-2)*LOP4d11c[t-1][i][j][k].re+(3*pow(ri,2)/Moll-2)*LOP4d12c[t-1][i][j][k].re+(3*pow(rk,2)/Moll+1)*LOP4d13c[t-1][i][j][k].re)-2*(GE/(1-v))*((3*pow(rk,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d11c[t-1][i][j][k].re+(3*pow(rk,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d12c[t-1][i][j][k].re+(3*pow(rk,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d13c[t-1][i][j][k].re);
+
+
+	 
+	}
+	}
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	         
+	 FE4d13c[t-1][i][j][k].im=4*GE*((3*pow(rj,2)/Moll-2)*LOP4d11c[t-1][i][j][k].im
+		 +(3*pow(ri,2)/Moll-2)*LOP4d12c[t-1][i][j][k].im
+		 +(3*pow(rk,2)/Moll+1)*LOP4d13c[t-1][i][j][k].im)
+		 -2*(GE/(1-v))*((3*pow(rk,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d11c[t-1][i][j][k].im
+		 +(3*pow(rk,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d12c[t-1][i][j][k].im+(3*pow(rk,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d13c[t-1][i][j][k].im);
+
+	}
+	}
+
+
+
+	//FFT Trans for FE4d13r[t-1][i][j][k]  [3]          (1)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d13r[i*Ny*Nz+j*Nz+k]=FE4d13c[t-1][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d13i[i*Ny*Nz+j*Nz+k]=FE4d13c[t-1][i][j][k].im;
+
+	}
+	}
+
+
+	kfft(FE1d13r,FE1d13i,GN,Np,FE1dF13r,FE1dF13i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d13r[t-1][i][j][k]=FE1dF13r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [3]                         (1)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	 DFE4d13r[t-1][ki][kj][kk]=AT*LOP4d13r[t-1][ki][kj][kk]-BT*pow(LOP4d13r[t-1][ki][kj][kk],2)+CT*pow(LOP4d13r[t-1][ki][kj][kk],3)
+									+CT*LOP4d13r[t-1][ki][kj][kk]*pow(LOP4d11r[t-1][ki][kj][kk],2)+CT*LOP4d13r[t-1][ki][kj][kk]*pow(LOP4d12r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d13r[t-1][ki][kj][kk]-6*GE*LOP4d12r[t-1][ki][kj][kk]-6*GE*LOP4d11r[t-1][ki][kj][kk]
+									-FE4d13r[t-1][ki][kj][kk];
+
+	}
+	}
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d13r[ki*Ny*Nz+kj*Nz+kk]=DFE4d13r[t-1][ki][kj][kk];
+
+	}
+	}
+
+
+	// FFT trans for DFE4d13c[t-1][Nx][Ny][Nz]  [3]    (1)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d13i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d13r,DFE1d13i,GN,Np,DFE1dF13r,DFE1dF13i,0,0);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		DFE4d13c[t-1][ki][kj][kk].re=DFE1dF13r[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		DFE4d13c[t-1][ki][kj][kk].im=DFE1dF13i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	// Equa. of motion [3]                              (1)
+
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			 if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx; 
+
+			Moll=pow(dm,2)*(pow(ri,2)+pow(rj,2)+pow(rk,2));
+	 
+	}
+	}
+
+
+
+
+	// Equation of motion  -re-[3]                       (1)
+
+	  for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d13c[t][i][j][k].re=(LOP4d13c[t-1][i][j][k].re-dt*DFE4d13c[t-1][i][j][k].re+dt*Noise4df13[t][i][j][k].re)/(1.0+dt*e*Moll);
+	  
+
+	}
+	}
+
+	 
+	// Equation of motion  -im-[3]                        (1)
+
+	  for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d13c[t][i][j][k].im=(LOP4d13c[t-1][i][j][k].im-dt*DFE4d13c[t-1][i][j][k].im+dt*Noise4df13[t][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+
+	}
+	}
+
+
+	//FFT trans for LOP4d13r[Nt1][Nx][Ny][Nz]           (1)
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d13rr[i*Ny*Nz+j*Nz+k]=LOP4d13c[t][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d13ri[i*Ny*Nz+j*Nz+k]=LOP4d13c[t][i][j][k].im;
+
+	}
+	}
+
+	kfft(LOP1d13rr,LOP1d13ri,GN,Np,LOP1dF13rr,LOP1dF13ri,1,1);
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d13r[t][ki][kj][kk]=LOP1dF13rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+
+
+	 // End of cal. for Variant 3///////////
+	 // End of cal. for Variant 3///////////
+	 // End of cal. for Variant 3///////////                            (1)
+
+	}
+
+
+	
+   
+ 
+	 
+	// End of cal. for Variant 3
+	// End of cal. for Variant 3  (2)
+
+	/*int z=2,x=0,l=0,fl[M];
+	for(x=0;)
+	for(i=0;i<M;i++)
+	{  z++;
+	   printf("程序运行到第  %d 段，请等待。",z);	 
+	   printf("\n  ");printf("\n  ");	printf("\n  ");
+       _input (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c,LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c); //(3) start
+       Calculation(LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);
+	   _output (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);  //(3)end
+       z++;x++;
+	
+	 
+	 printf("程序运行到第  %d 段，请等待。",z);	 
+	printf("\n  ");printf("\n  ");	printf("\n  ");
+     _input (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c,LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);
+     Calculation(LOP4d21r,LOP4d22r,LOP4d23r,LOP4d31c,LOP4d22c,LOP4d23c);
+     _output (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);  //(4)end
+	 x++;
+	  ofstream ofz("D://%d.txt");
+	for (l=0; l<=Nx-1; l++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+    ofz<<LOP4d21r[Nt3][l][j][k]<<"    ";
+	if (l=Nz-1) ofz<<endl;	  
+	}  
+	if (l=Ny-1) ofz<<endl;
+	
+	}
+    ofz.close();
+}*/   
+}
+
+///////////////THE SECOND STEP/////////////////
+///////////////THE SECOND STEP/////////////////
+///////////////THE SECOND STEP/////////////////
+///////////////THE SECOND STEP/////////////////
+void Pro2( double  LOP4d11r[Nt1][Nx][Ny][Nz],double LOP4d12r[Nt1][Nx][Ny][Nz],double LOP4d13r[Nt1][Nx][Ny][Nz],complex LOP4d11c[Nt1][Nx][Ny][Nz],complex LOP4d12c[Nt1][Nx][Ny][Nz],complex LOP4d13c[Nt1][Nx][Ny][Nz],
+		  double  LOP4d21r[Nt2][Nx][Ny][Nz],double LOP4d22r[Nt2][Nx][Ny][Nz], double LOP4d23r[Nt2][Nx][Ny][Nz],complex LOP4d21c[Nt2][Nx][Ny][Nz],complex LOP4d22c[Nt2][Nx][Ny][Nz],complex LOP4d23c[Nt2][Nx][Ny][Nz])
+{  // input the initializing values for the second step [variant 1]    (1)
+	// input the initializing values for the second step [variant 1]    (1)
+	int i,j,k,t;
+ 	int r;
+    int ki,kj,kk;
+	double ri,rj,rk;
+ 
+	 double u,g;
+	 double Mol,Moll;
+	 double dm=0.1, e=0.3,v=0.16, GE=0.13,AT=0.6432, BT=2.84, CT=1.33;
+	  double a21r[GN],a21i[GN],in21r[GN],in21i[GN];  
+	 double a22r[GN],a22i[GN],in22r[GN],in22i[GN];
+	 double a23r[GN],a23i[GN],in23r[GN],in23i[GN];
+	 complex Noise4df21[Nt2][Nx][Ny][Nz],Noise4df22[Nt2][Nx][Ny][Nz],Noise4df23[Nt2][Nx][Ny][Nz];
+	 double  FE4d21r[Nt2][Nx][Ny][Nz], FE4d22r[Nt2][Nx][Ny][Nz], FE4d23r[Nt2][Nx][Ny][Nz];
+	 complex FE4d21c[Nt2][Nx][Ny][Nz], FE4d22c[Nt2][Nx][Ny][Nz], FE4d23c[Nt2][Nx][Ny][Nz];
+	 double  DFE4d21r[Nt2][Nx][Ny][Nz],  DFE4d22r[Nt2][Nx][Ny][Nz],  DFE4d23r[Nt2][Nx][Ny][Nz];
+	 complex DFE4d21c[Nt2][Nx][Ny][Nz],  DFE4d22c[Nt2][Nx][Ny][Nz],  DFE4d23c[Nt2][Nx][Ny][Nz];
+	 double FE1d21r[GN],FE1d21i[GN],FE1dF21r[GN],FE1dF21i[GN];
+	 double DFE1d21r[GN], DFE1d21i[GN],DFE1dF21r[GN], DFE1dF21i[GN];
+	 double LOP1d21rr[GN],LOP1d21ri[GN],LOP1dF21rr[GN],LOP1dF21ri[GN];
+	 double FE1d22r[GN],FE1d22i[GN],FE1dF22r[GN],FE1dF22i[GN];
+	 double DFE1d22r[GN], DFE1d22i[GN],DFE1dF22r[GN], DFE1dF22i[GN];
+	 double LOP1d22rr[GN],LOP1d22ri[GN],LOP1dF22rr[GN],LOP1dF22ri[GN];
+	 double FE1d23r[GN],FE1d23i[GN],FE1dF23r[GN],FE1dF23i[GN];
+	 double DFE1d23r[GN], DFE1d23i[GN],DFE1dF23r[GN], DFE1dF23i[GN];
+	 double LOP1d23rr[GN],LOP1d23ri[GN],LOP1dF23rr[GN],LOP1dF23ri[GN];
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP4d21c[1][i][j][k].re=LOP4d11c[Nt1][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP4d21c[1][i][j][k].im=LOP4d11c[Nt1][i][j][k].im;
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d21r[1][ki][kj][kk]=LOP4d11r[Nt1][ki][kj][kk];
+
+	}
+	}
+
+	// input the initializing values for the second step [variant 2]
+	// input the initializing values for the second step [variant 2]   (1)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  LOP4d22c[1][i][j][k].re=LOP4d12c[Nt1][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  LOP4d22c[1][i][j][k].im=LOP4d12c[Nt1][i][j][k].im;
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+		 LOP4d22r[1][ki][kj][kk]=LOP4d12r[Nt1][ki][kj][kk];
+
+	}
+	}
+
+
+	// input the initializing values for the second step [variant 3]
+	// input the initializing values for the second step [variant 3]    (1)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  LOP4d23c[1][i][j][k].re=LOP4d13c[Nt1][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  LOP4d23c[1][i][j][k].im=LOP4d13c[Nt1][i][j][k].im;
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+		  LOP4d23r[1][ki][kj][kk]=LOP4d13r[Nt1][ki][kj][kk];
+
+	}
+	}
+
+
+	 //output data testing for the first step//         (1)
+	/*
+	printf("------------LOP FOR VARIANT 1 WITH NOISE AT STEP 1------  \n");
+	printf(" \n");
+
+
+	// for (t=1; t<=Nt1; t++)
+	{for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	 printf("%10.6f    ",   LOP4d11r[t][i][j][k]);
+
+	 
+	// printf("%10.6f    ",   LOP4d12r[t][i][j][k]);
+
+	// printf("%10.6f    ",   LOP4d13r[t][i][j][k]);
+
+	// printf("%10.6f    ",   LOP4d13c[t][i][j][k].re);
+
+	// printf("%10.6f    ",   DFE4d11c[t][i][j][k].re);
+
+	// printf("%10.6f    ",   FE4d11r[t][i][j][k]);
+
+	// printf("%10.6f    ",   FE4d13c[t][i][j][k].im);
+
+	// printf("%10.6f    ",   DFE4d13r[t][i][j][k]);
+
+	// printf("%10.6f    ",   DFE1dF11r[i*Ny*Nz+j*Nz+k]);
+
+	   printf(" \n");
+
+	}
+	printf(" \n");
+	}
+	printf(" \n");
+	}
+	printf(" \n");
+
+	printf("------------LOP FOR VARIANT 2 WITH NOISE AT STEP 1------  \n");
+	printf(" \n");
+
+	 for (t=1; t<=Nt1; t++)
+	{for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		printf("%10.6f    ",  LOP4d12r[t][i][j][k]);
+		printf(" \n");
+	}
+	printf(" \n");
+	}
+	printf(" \n");
+	}
+	printf(" \n");
+
+	printf("------------LOP FOR VARIANT 3 WITH NOISE AT STEP 1------  \n");
+	printf(" \n");
+
+	 for (t=1; t<=Nt1; t++)
+	{for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		printf("%10.6f    ",  LOP4d13r[t][i][j][k]);
+		printf(" \n");
+	}
+	printf(" \n");
+	}
+	printf(" \n");
+	}
+	printf(" \n");
+
+	*/
+
+	///////////////Finishing the first step/////////////////
+	///////////////Finishing the first step//////////////////////
+	///////////////Finishing the first step//////////////////////////
+	///////////////Finishing the first step///////////////////////////////
+
+
+
+
+	///////////////Starting the second step with noise///////////////////////////////
+	///////////////Starting the second step with noise//////////////////////////
+	///////////////Starting the second step with noise////////////////////
+	///////////////Starting the second step with noise//////////////
+
+	// Noise-Gauss Distribution 
+
+	// FFT-transformation  
+
+	   r=6; u=0.0; g=1.0;  
+
+	   //Noise of variant 1                               (2)
+	 
+	 for (t=1;t<=Nt2;t++)
+	{
+	   mgrns(u,g,&r,GN,a21r);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	    
+	 a21i[i*Ny*Nz+j*Nz+k]=0.0;
+
+	}
+	}
+
+	// FFT transformation [1]                          (2)
+
+	 kfft(a21r,a21i,GN,Np,in21r,in21i,0,0);
+
+	//to get re [1] (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	  Noise4df21[t][i][j][k].re=10*in21r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+
+	//to get im [1]                                    (2)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		Noise4df21[t][i][j][k].im=10*in21i[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+	}   
+
+	 
+	//Noise of variant 2                              (2)
+	 
+	 for (t=1;t<=Nt2;t++)
+	{
+	   mgrns(u,g,&r,GN,a22r);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	    
+	 a22i[i*Ny*Nz+j*Nz+k]=0.0;
+
+	}
+	}
+
+	// FFT transformation [2]                         (2)
+
+	 kfft(a22r,a22i,GN,Np,in22r,in22i,0,0);
+
+	//to get re [2]                                   (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	  Noise4df22[t][i][j][k].re=10*in22r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+
+	//to get im [2]                                  (2)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		Noise4df22[t][i][j][k].im=10*in22i[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+	}   
+
+
+	//Noise of variant 3                           (2)
+	 
+	 for (t=1;t<=Nt2;t++)
+	{
+	   mgrns(u,g,&r,GN,a23r);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	    
+	 a23i[i*Ny*Nz+j*Nz+k]=0.0;
+
+	}
+	}
+
+	// FFT transformation [3]                    (2)
+
+	 kfft(a23r,a23i,GN,Np,in23r,in23i,0,0);
+
+	//to get re [3]                              (2) 
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	  Noise4df23[t][i][j][k].re=10*in23r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+
+	//to get im [3]                              (2)
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		Noise4df23[t][i][j][k].im=10*in23i[i*Ny*Nz+j*Nz+k];
+
+	}
+	}   
+	}   
+
+	 // output testing [1][2][3]                  (2)
+
+	/*
+	printf("--------------Noise4df21[Nt2] ----------testing------------\n");
+	printf("\n");
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		printf("%10.6f    ",  Noise4df21[Nt2][i][j][k].re);
+	//  printf("%10.6f    ",  Noise4df21[t][i][j][k].im);
+
+	//  printf("%10.6f    ",  Noise4df22[t][i][j][k].re);
+	//  printf("%10.6f    ",  Noise4df22[t][i][j][k].im);
+
+	//  printf("%10.6f    ",  Noise4df23[t][i][j][k].re);
+	//  printf("%10.6f    ",  Noise4df23[t][i][j][k].im);
+
+		printf("\n");
+		  }
+		printf("\n");
+		}
+	printf("\n");
+	*/
+
+	 
+
+
+	//equation of motion (Only including noise);
+
+	for (i=0; i<=Nx-1; i++)
+	{     if (i<=Nx/2)  ri=i;
+			  else  ri=i-Nx;
+	{for (j=0; j<=Ny-1; j++)
+		 if (j<=Ny/2) rj=j;
+			  else rj=j-Ny;
+	{for (k=0; k<=Nz-1; k++)
+		 if (k<=Nz/2)  rk=k;
+			  else  rk=k-Nz;
+
+	Mol=pow(dm,2)*(pow(ri,2)+pow(rj,2)+pow(rk,2));
+
+	}
+	}
+	}
+
+	//equation of motion for variant 1 with noise (2)
+	 
+	 
+
+	//t>=2, start calculation                          (2)
+
+
+
+	 for (t=2; t<=Nt2+1; t++) 
+
+	{	
+
+		 //Variant 1;                              (2)
+
+	//FE Cal. [1]
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	  
+		  FE4d21c[t-1][i][j][k].re=4.0*GE*((3*pow(ri,2)/Moll+1)*LOP4d21c[t-1][i][j][k].re
+			  +(3.0*pow(rk,2)/Moll-2)*LOP4d22c[t-1][i][j][k].re
+			  +(3.0*pow(rj,2)/Moll-2)*LOP4d23c[t-1][i][j][k].re)
+			  -2.0*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*(LOP4d21c[t-1][i][j][k].re)
+			  +(3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*(LOP4d22c[t-1][i][j][k].re)+(3*pow(ri,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d23c[t-1][i][j][k].re);
+		  
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	  
+
+		  FE4d21c[t-1][i][j][k].im=4*GE*((3*pow(ri,2)/Moll+1)*LOP4d21c[t-1][i][j][k].im
+			  +(3*pow(rk,2)/Moll-2)*LOP4d22c[t-1][i][j][k].im
+			  +(3*pow(rj,2)/Moll-2)*LOP4d23c[t-1][i][j][k].im)
+			  -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d21c[t-1][i][j][k].im
+			  +(3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d22c[t-1][i][j][k].im+(3*pow(ri,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d23c[t-1][i][j][k].im);
+		  
+	}
+	}
+
+
+	//FFT Trans for FE4d11r[t-1][i][j][k] [1]                     (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d21r[i*Ny*Nz+j*Nz+k]=FE4d21c[t-1][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d21i[i*Ny*Nz+j*Nz+k]=FE4d21c[t-1][i][j][k].im;
+
+	}
+	}
+
+
+	kfft(FE1d21r,FE1d21i,GN,Np,FE1dF21r,FE1dF21i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d21r[t-1][i][j][k]=FE1dF21r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [1]                                     (2)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	          
+		  DFE4d21r[t-1][ki][kj][kk]=AT*LOP4d21r[t-1][ki][kj][kk]-BT*pow(LOP4d21r[t-1][ki][kj][kk],2)+CT*pow(LOP4d21r[t-1][ki][kj][kk],3)
+									+CT*LOP4d21r[t-1][ki][kj][kk]*pow(LOP4d22r[t-1][ki][kj][kk],2)+CT*LOP4d21r[t-1][ki][kj][kk]*pow(LOP4d23r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d21r[t-1][ki][kj][kk]-6*GE*LOP4d22r[t-1][ki][kj][kk]-6*GE*LOP4d23r[t-1][ki][kj][kk]
+									-FE4d21r[t-1][ki][kj][kk];
+	}
+	}
+
+
+	// FFT trans for DFE4d11c[t-1][ki][kj][kk]                     (2)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d21r[ki*Ny*Nz+kj*Nz+kk]=DFE4d21r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d21i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d21r,DFE1d21i,GN,Np,DFE1dF21r,DFE1dF21i,0,0);
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d21c[t-1][ki][kj][kk].re=DFE1dF21r[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d21c[t-1][ki][kj][kk].im=DFE1dF21i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	// Equa. of motion [1]                              (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+
+
+	//equation -re-[1]                     (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d21c[t][i][j][k].re=(LOP4d21c[t-1][i][j][k].re-dt*DFE4d21c[t-1][i][j][k].re+dt*Noise4df21[t][i][j][k].re)/(1.0+dt*e*Moll);
+
+	}
+	}
+
+
+
+	//equation -im-[1]                     (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d21c[t][i][j][k].im=(LOP4d21c[t-1][i][j][k].im-dt*DFE4d21c[t-1][i][j][k].im+dt*Noise4df21[t][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+	}
+	}
+
+
+
+
+	//FFT trans for LOP4d11r[t][i][j][k]                     (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d21rr[i*Ny*Nz+j*Nz+k]=LOP4d21c[t][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d21ri[i*Ny*Nz+j*Nz+k]=LOP4d21c[t][i][j][k].im;
+
+	}
+	}
+
+	//FFT trans-LOP1                     (2)
+
+	kfft(LOP1d21rr,LOP1d21ri,GN,Np,LOP1dF21rr,LOP1dF21ri,1,1);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d21r[t][ki][kj][kk]=LOP1dF21rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+
+	}
+	}
+
+
+	//Ending of variant 1//////
+	//Ending of variant 1//////            (2)
+
+
+
+	//Variant 2;                           (2)
+
+	//FE Cal. [2]
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		  
+	  FE4d22c[t-1][i][j][k].re=4*GE*((3*pow(rk,2)/Moll-2)*LOP4d21c[t-1][i][j][k].re
+			 +(3*pow(rj,2)/Moll+1)*LOP4d22c[t-1][i][j][k].re
+			 +(3*pow(ri,2)/Moll-2)*LOP4d23c[t-1][i][j][k].re)
+			 -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d21c[t-1][i][j][k].re
+			 +(3*pow(rj,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d22c[t-1][i][j][k].re+(3*pow(rj,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d23c[t-1][i][j][k].re);
+
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	  
+	 
+	FE4d22c[t-1][i][j][k].im=4*GE*((3*pow(rk,2)/Moll-2)*LOP4d21c[t-1][i][j][k].im
+			 +(3*pow(rj,2)/Moll+1)*LOP4d22c[t-1][i][j][k].im
+			 +(3*pow(ri,2)/Moll-2)*LOP4d23c[t-1][i][j][k].im)
+			 -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d21c[t-1][i][j][k].im
+			 +(3*pow(rj,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d22c[t-1][i][j][k].im+(3*pow(rj,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d23c[t-1][i][j][k].im);
+
+	}
+	}
+
+
+	//FFT Trans for FE4d12c and FE4d12r [2]                (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d22r[i*Ny*Nz+j*Nz+k]=FE4d22c[t-1][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d22i[i*Ny*Nz+j*Nz+k]=FE4d22c[t-1][i][j][k].im;
+
+	}
+	}
+
+
+
+	kfft(FE1d22r,FE1d22i,GN,Np,FE1dF22r,FE1dF22i,1,1);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		 FE4d22r[t-1][i][j][k]=FE1dF22r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [2]                        (2)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	 DFE4d22r[t-1][ki][kj][kk]=AT*LOP4d22r[t-1][ki][kj][kk]-BT*pow(LOP4d22r[t-1][ki][kj][kk],2)+CT*pow(LOP4d22r[t-1][ki][kj][kk],3)
+									+CT*LOP4d22r[t-1][ki][kj][kk]*pow(LOP4d21r[t-1][ki][kj][kk],2)+CT*LOP4d22r[t-1][ki][kj][kk]*pow(LOP4d23r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d22r[t-1][ki][kj][kk]-6*GE*LOP4d21r[t-1][ki][kj][kk]-6*GE*LOP4d23r[t-1][ki][kj][kk]
+									-FE4d22r[t-1][ki][kj][kk];
+	 
+	}
+	}
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d22r[ki*Ny*Nz+kj*Nz+kk]=DFE4d22r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d22i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d22r,DFE1d22i,GN,Np,DFE1dF22r,DFE1dF22i,0,0);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		  DFE4d22c[t-1][ki][kj][kk].re=DFE1dF22r[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		  DFE4d22c[t-1][ki][kj][kk].im=DFE1dF22i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+
+
+	// Equa. of motion [2]                        (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	 
+
+	//equation -re-[2]                        (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d22c[t][i][j][k].re=(LOP4d22c[t-1][i][j][k].re-dt*DFE4d22c[t-1][i][j][k].re+dt*Noise4df22[t][i][j][k].re)/(1.0+dt*e*Moll);
+	    
+	}
+	}
+
+	 
+	//equation -im-[2]                          (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d22c[t][i][j][k].im=(LOP4d22c[t-1][i][j][k].im-dt*DFE4d22c[t-1][i][j][k].im+dt*Noise4df22[t][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+	}
+	}
+
+
+
+	//FFT trans for LOP4d12r [2]                (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d22rr[i*Ny*Nz+j*Nz+k]=LOP4d22c[t][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d22ri[i*Ny*Nz+j*Nz+k]=LOP4d22c[t][i][j][k].im;
+
+	}
+	}
+
+
+	kfft(LOP1d22rr,LOP1d22ri,GN,Np,LOP1dF22rr,LOP1dF22ri,1,1);
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	   LOP4d22r[t][ki][kj][kk]=LOP1dF22rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+
+
+
+	//End of calculation for Variant 2 
+	//End of calculation for Variant 2       (2)
+
+
+	//Variant 3;                             (2)
+	//FE Cal. [3]
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	 
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	  
+	 FE4d23c[t-1][i][j][k].re=4*GE*((3*pow(rj,2)/Moll-2)*LOP4d21c[t-1][i][j][k].re
+		 +(3*pow(ri,2)/Moll-2)*LOP4d22c[t-1][i][j][k].re
+		 +(3*pow(rk,2)/Moll+1)*LOP4d23c[t-1][i][j][k].re)
+		 -2*(GE/(1-v))*((3*pow(rk,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d21c[t-1][i][j][k].re
+		 +(3*pow(rk,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d22c[t-1][i][j][k].re+(3*pow(rk,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d23c[t-1][i][j][k].re);
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	  
+	 FE4d23c[t-1][i][j][k].im=4*GE*((3*pow(rj,2)/Moll-2)*LOP4d21c[t-1][i][j][k].im
+		 +(3*pow(ri,2)/Moll-2)*LOP4d22c[t-1][i][j][k].im
+		 +(3*pow(rk,2)/Moll+1)*LOP4d23c[t-1][i][j][k].im)
+		 -2*(GE/(1-v))*((3*pow(rk,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d21c[t-1][i][j][k].im
+		 +(3*pow(rk,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d22c[t-1][i][j][k].im+(3*pow(rk,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d23c[t-1][i][j][k].im);
+
+	}
+	}
+
+
+
+	//FFT Trans for FE4d13r[t-1][i][j][k]  [3]        (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d23r[i*Ny*Nz+j*Nz+k]=FE4d23c[t-1][i][j][k].re;
+
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d23i[i*Ny*Nz+j*Nz+k]=FE4d23c[t-1][i][j][k].im;
+
+	}
+	}
+
+	kfft(FE1d23r,FE1d23i,GN,Np,FE1dF23r,FE1dF23i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d23r[t-1][i][j][k]=FE1dF23r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [3]
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	 DFE4d23r[t-1][ki][kj][kk]=AT*LOP4d23r[t-1][ki][kj][kk]-BT*pow(LOP4d23r[t-1][ki][kj][kk],2)+CT*pow(LOP4d23r[t-1][ki][kj][kk],3)
+									+CT*LOP4d23r[t-1][ki][kj][kk]*pow(LOP4d21r[t-1][ki][kj][kk],2)+CT*LOP4d23r[t-1][ki][kj][kk]*pow(LOP4d22r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d23r[t-1][ki][kj][kk]-6*GE*LOP4d22r[t-1][ki][kj][kk]-6*GE*LOP4d21r[t-1][ki][kj][kk]
+									-FE4d23r[t-1][ki][kj][kk];
+
+	}
+	}
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d23r[ki*Ny*Nz+kj*Nz+kk]=DFE4d23r[t-1][ki][kj][kk];
+
+	}
+	}
+
+
+	// FFT trans for DFE4d13c[t-1][Nx][Ny][Nz]  [3]         (2)
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d23i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d23r,DFE1d23i,GN,Np,DFE1dF23r,DFE1dF23i,0,0);
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d23c[t-1][ki][kj][kk].re=DFE1dF23r[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d23c[t-1][ki][kj][kk].im=DFE1dF23i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	// Equa. of motion [3]                          (2)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	 
+
+
+	// Equation of motion  -re-[3]                      (2)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d23c[t][i][j][k].re=(LOP4d23c[t-1][i][j][k].re-dt*DFE4d23c[t-1][i][j][k].re+dt*Noise4df23[t][i][j][k].re)/(1.0+dt*e*Moll);
+	  
+
+	}
+	}
+
+	 
+	// Equation of motion  -im-[3]                      (2)   
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d23c[t][i][j][k].im=(LOP4d23c[t-1][i][j][k].im-dt*DFE4d23c[t-1][i][j][k].im+dt*Noise4df23[t][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+
+	}
+	}
+
+	 
+	//FFT trans for LOP4d13r[Nt1][Nx][Ny][Nz]             (2)
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d23rr[i*Ny*Nz+j*Nz+k]=LOP4d23c[t][i][j][k].re;
+
+	}
+	}
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d23ri[i*Ny*Nz+j*Nz+k]=LOP4d23c[t][i][j][k].im;
+
+	}
+	}
+
+	kfft(LOP1d23rr,LOP1d23ri,GN,Np,LOP1dF23rr,LOP1dF23ri,1,1);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d23r[t][ki][kj][kk]=LOP1dF23rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+    
+ 
+}
+}
+
+///////////////INPUT FUNCTION/////////////////
+///////////////INPUT FUNCTION/////////////////
+///////////////INPUT FUNCTION/////////////////
+///////////////INPUT FUNCTION/////////////////
+void _input (double LOP4d21r[Nt2][Nx][Ny][Nz],double LOP4d22r[Nt2][Nx][Ny][Nz],double LOP4d23r[Nt2][Nx][Ny][Nz],complex LOP4d21c[Nt2][Nx][Ny][Nz],complex LOP4d22c[Nt2][Nx][Ny][Nz],complex LOP4d23c[Nt2][Nx][Ny][Nz],
+			 double LOP4d31r[Nt2][Nx][Ny][Nz],double LOP4d32r[Nt2][Nx][Ny][Nz],double LOP4d33r[Nt2][Nx][Ny][Nz],complex LOP4d31c[Nt2][Nx][Ny][Nz],complex LOP4d32c[Nt2][Nx][Ny][Nz],complex LOP4d33c[Nt2][Nx][Ny][Nz])
+
+	 {// input the initializing values for the second step [variant 1]
+	  // input the initializing values for the second step [variant 1]        
+  	
+	
+
+	int i,j,k,t;
+	int ki,kj,kk;
+	double ri,rj,rk;
+
+ 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP4d31c[1][i][j][k].re=LOP4d21c[Nt2][i][j][k].re;
+    LOP4d31c[1][i][j][k].im=LOP4d21c[Nt2][i][j][k].im;
+	
+	}
+	}
+
+	
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d31r[1][ki][kj][kk]=LOP4d21r[Nt2][ki][kj][kk];
+
+	}
+	}
+
+	// input the initializing values for the second step [variant 2]
+	// input the initializing values for the second step [variant 2]    
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		 LOP4d32c[1][i][j][k].re=LOP4d22c[Nt2][i][j][k].re;
+	     LOP4d32c[1][i][j][k].im=LOP4d22c[Nt2][i][j][k].im;
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+		LOP4d32r[1][ki][kj][kk]=LOP4d22r[Nt2][ki][kj][kk];
+	 
+	}
+	}
+
+	// input the initializing values for the second step [variant 3]
+	// input the initializing values for the second step [variant 3]       
+	 
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+		 LOP4d33c[1][i][j][k].re=LOP4d23c[Nt2][i][j][k].re;
+	 	 LOP4d33c[1][i][j][k].im=LOP4d23c[Nt2][i][j][k].im;
+	 
+	}
+	}
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+		  LOP4d33r[1][ki][kj][kk]=LOP4d23r[Nt2][ki][kj][kk];
+	
+
+	}
+	}
+	}
+
+
+///////////////CALCULATION FUNCTION/////////////////
+///////////////CALCULATION FUNCTION/////////////////
+///////////////CALCULATION FUNCTION/////////////////
+
+
+//equation of motion for variant 1/2/3 without noise             
+
+//t>=2, start calculation                                      
+
+void Calculation( double LOP4d31r[Nt2][Nx][Ny][Nz],double LOP4d32r[Nt2][Nx][Ny][Nz],double LOP4d33r[Nt2][Nx][Ny][Nz],complex LOP4d31c[Nt2][Nx][Ny][Nz],complex LOP4d32c[Nt2][Nx][Ny][Nz],complex LOP4d33c[Nt2][Nx][Ny][Nz])
+	{    double FE1d31r[GN],FE1d31i[GN],FE1dF31r[GN],FE1dF31i[GN];
+		 double DFE1d31r[GN], DFE1d31i[GN],DFE1dF31r[GN], DFE1dF31i[GN];
+		 double LOP1d31rr[GN],LOP1d31ri[GN],LOP1dF31rr[GN],LOP1dF31ri[GN];
+		 double FE1d32r[GN],FE1d32i[GN],FE1dF32r[GN],FE1dF32i[GN];
+		 double DFE1d32r[GN], DFE1d32i[GN],DFE1dF32r[GN], DFE1dF32i[GN];
+		 double LOP1d32rr[GN],LOP1d32ri[GN],LOP1dF32rr[GN],LOP1dF32ri[GN];
+		 double FE1d33r[GN],FE1d33i[GN],FE1dF33r[GN],FE1dF33i[GN];
+		 double DFE1d33r[GN], DFE1d33i[GN],DFE1dF33r[GN], DFE1dF33i[GN];
+		 double LOP1d33rr[GN],LOP1d33ri[GN],LOP1dF33rr[GN],LOP1dF33ri[GN];
+		 double  FE4d31r[Nt3][Nx][Ny][Nz], FE4d32r[Nt3][Nx][Ny][Nz], FE4d33r[Nt3][Nx][Ny][Nz];
+		 complex FE4d31c[Nt3][Nx][Ny][Nz], FE4d32c[Nt3][Nx][Ny][Nz], FE4d33c[Nt3][Nx][Ny][Nz];
+		 double  DFE4d31r[Nt3][Nx][Ny][Nz], DFE4d32r[Nt3][Nx][Ny][Nz], DFE4d33r[Nt3][Nx][Ny][Nz];
+		 complex DFE4d31c[Nt3][Nx][Ny][Nz], DFE4d32c[Nt3][Nx][Ny][Nz], DFE4d33c[Nt3][Nx][Ny][Nz];
+		 
+	  int i,j,k,t;
+ 	  int r;
+	  int ki,kj,kk;
+	  double ri,rj,rk;
+	  double u,g;
+	 double Mol,Moll;
+	 double dm=0.1, e=0.3,v=0.16, GE=0.13,AT=0.6432, BT=2.84, CT=1.33;
+	   
+		for (t=2; t<=Nt3+1; t++) 
+
+	{	
+
+	printf("程序运行到第  %d  步，请等待。",t);	 
+	printf("\n  ");
+		 
+		 
+		 //Variant 1;                              (3)
+
+	//FE Cal. [1]
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	  
+		  FE4d31c[t-1][i][j][k].re=4.0*GE*((3*pow(ri,2)/Moll+1)*LOP4d31c[t-1][i][j][k].re
+			  +(3.0*pow(rk,2)/Moll-2)*LOP4d32c[t-1][i][j][k].re
+			  +(3.0*pow(rj,2)/Moll-2)*LOP4d33c[t-1][i][j][k].re)
+			  -2.0*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*(LOP4d31c[t-1][i][j][k].re)
+			  +(3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*(LOP4d32c[t-1][i][j][k].re)+(3*pow(ri,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d33c[t-1][i][j][k].re);
+		  FE4d31c[t-1][i][j][k].im=4*GE*((3*pow(ri,2)/Moll+1)*LOP4d31c[t-1][i][j][k].im
+			  +(3*pow(rk,2)/Moll-2)*LOP4d32c[t-1][i][j][k].im
+			  +(3*pow(rj,2)/Moll-2)*LOP4d33c[t-1][i][j][k].im)
+			  -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d31c[t-1][i][j][k].im
+			  +(3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d32c[t-1][i][j][k].im+(3*pow(ri,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d33c[t-1][i][j][k].im);
+
+	}
+	}
+
+	 
+
+	//FFT Trans for FE4d11r[t-1][i][j][k] [1]                     (3)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d31r[i*Ny*Nz+j*Nz+k]=FE4d31c[t-1][i][j][k].re;
+	FE1d31i[i*Ny*Nz+j*Nz+k]=FE4d31c[t-1][i][j][k].im;
+
+	}
+	}
+
+	
+	kfft(FE1d31r,FE1d31i,GN,Np,FE1dF31r,FE1dF31i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d31r[t-1][i][j][k]=FE1dF31r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+
+
+	//DEF and it's FFT cal. [1]                                     (3)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	          
+		  DFE4d31r[t-1][ki][kj][kk]=AT*LOP4d31r[t-1][ki][kj][kk]-BT*pow(LOP4d31r[t-1][ki][kj][kk],2)+CT*pow(LOP4d31r[t-1][ki][kj][kk],3)
+									+CT*LOP4d31r[t-1][ki][kj][kk]*pow(LOP4d32r[t-1][ki][kj][kk],2)+CT*LOP4d31r[t-1][ki][kj][kk]*pow(LOP4d33r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d31r[t-1][ki][kj][kk]-6*GE*LOP4d32r[t-1][ki][kj][kk]-6*GE*LOP4d33r[t-1][ki][kj][kk]
+									-FE4d31r[t-1][ki][kj][kk];
+	}
+	}
+
+
+	// FFT trans for DFE4d11c[t-1][ki][kj][kk]                     (3)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d31r[ki*Ny*Nz+kj*Nz+kk]=DFE4d31r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d31i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d31r,DFE1d31i,GN,Np,DFE1dF31r,DFE1dF31i,0,0);
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d31c[t-1][ki][kj][kk].re=DFE1dF31r[ki*Ny*Nz+kj*Nz+kk];
+    DFE4d31c[t-1][ki][kj][kk].im=DFE1dF31i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	
+	// Equa. of motion [1]                                 (3)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+
+	//equation -re-im-[1]                                     (3)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	     	LOP4d31c[t][i][j][k].re=(LOP4d31c[t-1][i][j][k].re-dt*DFE4d31c[t-1][i][j][k].re)/(1.0+dt*e*Moll);
+		    LOP4d31c[t][i][j][k].im=(LOP4d31c[t-1][i][j][k].im-dt*DFE4d31c[t-1][i][j][k].im)/(1.0+dt*e*Moll);
+
+	}
+	}
+
+
+
+
+
+
+	//FFT trans for LOP4d11r[t][i][j][k]                     (3)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d31rr[i*Ny*Nz+j*Nz+k]=LOP4d31c[t][i][j][k].re;
+	LOP1d31ri[i*Ny*Nz+j*Nz+k]=LOP4d31c[t][i][j][k].im;
+
+	}
+	}
+
+
+	//FFT trans-LOP1                     (3)
+
+	kfft(LOP1d31rr,LOP1d31ri,GN,Np,LOP1dF31rr,LOP1dF31ri,1,1);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d31r[t][ki][kj][kk]=LOP1dF31rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+
+
+	//Ending of variant 1///////// 
+	//Ending of variant 1/////////          (3)
+
+
+
+	//Variant 2;                            (3)
+
+	//FE Cal. [2]
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	  
+		  
+	  FE4d32c[t-1][i][j][k].re=4*GE*((3*pow(rk,2)/Moll-2)*LOP4d31c[t-1][i][j][k].re
+			 +(3*pow(rj,2)/Moll+1)*LOP4d32c[t-1][i][j][k].re
+			 +(3*pow(ri,2)/Moll-2)*LOP4d33c[t-1][i][j][k].re)
+			 -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d31c[t-1][i][j][k].re
+			 +(3*pow(rj,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d32c[t-1][i][j][k].re+(3*pow(rj,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d33c[t-1][i][j][k].re);
+      FE4d32c[t-1][i][j][k].im=4*GE*((3*pow(rk,2)/Moll-2)*LOP4d31c[t-1][i][j][k].im
+			 +(3*pow(rj,2)/Moll+1)*LOP4d32c[t-1][i][j][k].im
+			 +(3*pow(ri,2)/Moll-2)*LOP4d33c[t-1][i][j][k].im)
+			 -2*(GE/(1-v))*((3*pow(ri,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d31c[t-1][i][j][k].im
+			 +(3*pow(rj,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d32c[t-1][i][j][k].im+(3*pow(rj,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d33c[t-1][i][j][k].im);
+
+
+	}
+	}
+
+	
+
+
+	//FFT Trans for FE4d12c and FE4d12r [2]                (3)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d32r[i*Ny*Nz+j*Nz+k]=FE4d32c[t-1][i][j][k].re;
+    FE1d32i[i*Ny*Nz+j*Nz+k]=FE4d32c[t-1][i][j][k].im;
+
+	}
+	}
+
+	 
+
+	kfft(FE1d32r,FE1d32i,GN,Np,FE1dF32r,FE1dF32i,1,1);
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d32r[t-1][i][j][k]=FE1dF32r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [2]                        (3)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	 DFE4d32r[t-1][ki][kj][kk]=AT*LOP4d32r[t-1][ki][kj][kk]-BT*pow(LOP4d32r[t-1][ki][kj][kk],2)+CT*pow(LOP4d32r[t-1][ki][kj][kk],3)
+									+CT*LOP4d32r[t-1][ki][kj][kk]*pow(LOP4d31r[t-1][ki][kj][kk],2)+CT*LOP4d32r[t-1][ki][kj][kk]*pow(LOP4d33r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d32r[t-1][ki][kj][kk]-6*GE*LOP4d31r[t-1][ki][kj][kk]-6*GE*LOP4d33r[t-1][ki][kj][kk]
+									-FE4d32r[t-1][ki][kj][kk];
+	 
+	}
+	}
+
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d32r[ki*Ny*Nz+kj*Nz+kk]=DFE4d32r[t-1][ki][kj][kk];
+      DFE1d32i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d32r,DFE1d32i,GN,Np,DFE1dF32r,DFE1dF32i,0,0);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+		  DFE4d32c[t-1][ki][kj][kk].re=DFE1dF32r[ki*Ny*Nz+kj*Nz+kk];
+		  DFE4d32c[t-1][ki][kj][kk].im=DFE1dF32i[ki*Ny*Nz+kj*Nz+kk];
+	}
+	}
+
+
+	// Equa. of motion [2]                        (3)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	//equation -re-[2]                        (3)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d32c[t][i][j][k].re=(LOP4d32c[t-1][i][j][k].re-dt*DFE4d32c[t-1][i][j][k].re)/(1.0+dt*e*Moll);
+	    LOP4d32c[t][i][j][k].im=(LOP4d32c[t-1][i][j][k].im-dt*DFE4d32c[t-1][i][j][k].im)/(1.0+dt*e*Moll);  
+
+	}
+	}
+
+	 
+	//equation -im-[2]                          (3)
+
+	 
+
+	//FFT trans for LOP4d12r [2]                (3)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d32rr[i*Ny*Nz+j*Nz+k]=LOP4d32c[t][i][j][k].re;
+	LOP1d32ri[i*Ny*Nz+j*Nz+k]=LOP4d32c[t][i][j][k].im;
+
+	}
+	}
+
+	
+
+	kfft(LOP1d32rr,LOP1d32ri,GN,Np,LOP1dF32rr,LOP1dF32ri,1,0);
+
+	for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	   LOP4d32r[t][ki][kj][kk]=LOP1dF32rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+
+
+
+
+	//End of calculation for Variant 2         (3)
+
+
+	//Variant 3;                               (3)
+	//FE Cal. [3]
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+	 FE4d33c[t-1][i][j][k].re=4*GE*((3*pow(rj,2)/Moll-2)*LOP4d31c[t-1][i][j][k].re
+		 +(3*pow(ri,2)/Moll-2)*LOP4d32c[t-1][i][j][k].re
+		 +(3*pow(rk,2)/Moll+1)*LOP4d33c[t-1][i][j][k].re)
+		 -2*(GE/(1-v))*((3*pow(rk,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d31c[t-1][i][j][k].re
+		 +(3*pow(rk,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d32c[t-1][i][j][k].re+(3*pow(rk,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d33c[t-1][i][j][k].re);
+     FE4d33c[t-1][i][j][k].im=4*GE*((3*pow(rj,2)/Moll-2)*LOP4d31c[t-1][i][j][k].im
+		 +(3*pow(ri,2)/Moll-2)*LOP4d32c[t-1][i][j][k].im
+		 +(3*pow(rk,2)/Moll+1)*LOP4d33c[t-1][i][j][k].im)
+		 -2*(GE/(1-v))*((3*pow(rk,2)/Moll-1)*(3*pow(ri,2)/Moll-1)*LOP4d31c[t-1][i][j][k].im
+		 +(3*pow(rk,2)/Moll-1)*(3*pow(rj,2)/Moll-1)*LOP4d32c[t-1][i][j][k].im+(3*pow(rk,2)/Moll-1)*(3*pow(rk,2)/Moll-1)*LOP4d33c[t-1][i][j][k].im);
+	}
+	}
+
+	
+
+
+	//FFT Trans for FE4d13r[t-1][i][j][k]  [3]        (3)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE1d33r[i*Ny*Nz+j*Nz+k]=FE4d33c[t-1][i][j][k].re;
+	FE1d33i[i*Ny*Nz+j*Nz+k]=FE4d33c[t-1][i][j][k].im;
+
+	}
+	}
+
+
+
+
+	kfft(FE1d33r,FE1d33i,GN,Np,FE1dF33r,FE1dF33i,1,1);
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	FE4d33r[t-1][i][j][k]=FE1dF33r[i*Ny*Nz+j*Nz+k];
+
+	}
+	}
+
+
+	//DEF and it's FFT cal. [3]
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+	      
+	 DFE4d33r[t-1][ki][kj][kk]=AT*LOP4d33r[t-1][ki][kj][kk]-BT*pow(LOP4d33r[t-1][ki][kj][kk],2)+CT*pow(LOP4d33r[t-1][ki][kj][kk],3)
+									+CT*LOP4d33r[t-1][ki][kj][kk]*pow(LOP4d31r[t-1][ki][kj][kk],2)+CT*LOP4d33r[t-1][ki][kj][kk]*pow(LOP4d32r[t-1][ki][kj][kk],2)
+									+12*GE*LOP4d33r[t-1][ki][kj][kk]-6*GE*LOP4d32r[t-1][ki][kj][kk]-6*GE*LOP4d31r[t-1][ki][kj][kk]
+									-FE4d33r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	// FFT trans for DFE4d13c[t-1][Nx][Ny][Nz]  [3]         (3)
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	  DFE1d33r[ki*Ny*Nz+kj*Nz+kk]=DFE4d33r[t-1][ki][kj][kk];
+
+	}
+	}
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	   DFE1d33i[ki*Ny*Nz+kj*Nz+kk]=0.0;
+
+	}
+	}
+
+	kfft(DFE1d33r,DFE1d33i,GN,Np,DFE1dF33r,DFE1dF33i,0,0);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++) 
+
+	DFE4d33c[t-1][ki][kj][kk].re=DFE1dF33r[ki*Ny*Nz+kj*Nz+kk];
+	DFE4d33c[t-1][ki][kj][kk].im=DFE1dF33i[ki*Ny*Nz+kj*Nz+kk];
+
+	}
+	}
+
+	
+
+	// Equa. of motion [3]                          (3)
+
+	for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+			  if (i<=Nx/2)    ri=i,rj=i,rk=i;
+			  else  ri=i-Nx,rj=i-Nx,rk=i-Nx;
+
+		  Moll=pow(ri,2)+pow(rj,2)+pow(rk,2);
+		 	  
+	}
+	}
+
+
+
+	// Equation of motion  -re-[3]                      (3)
+
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+	     
+		LOP4d33c[t][i][j][k].re=(LOP4d33c[t-1][i][j][k].re-dt*DFE4d33c[t-1][i][j][k].re)/(1.0+dt*e*Moll);
+	    LOP4d33c[t][i][j][k].im=(LOP4d33c[t-1][i][j][k].im-dt*DFE4d33c[t-1][i][j][k].im)/(1.0+dt*e*Moll);
+	  
+	}
+	}
+
+	 
+	// Equation of motion  -im-[3]                      (3)   
+
+ 
+
+	//FFT trans for LOP4d13r[Nt1][Nx][Ny][Nz]             (3)
+	 for (i=0; i<=Nx-1; i++)
+	{for (j=0; j<=Ny-1; j++)
+	{for (k=0; k<=Nz-1; k++)
+
+	LOP1d33rr[i*Ny*Nz+j*Nz+k]=LOP4d33c[t][i][j][k].re;
+	LOP1d33ri[i*Ny*Nz+j*Nz+k]=LOP4d33c[t][i][j][k].im;
+
+	}
+	}
+
+	
+
+	kfft(LOP1d33rr,LOP1d33ri,GN,Np,LOP1dF33rr,LOP1dF33ri,1,1);
+
+	 for (ki=0; ki<=Nx-1; ki++)
+	{for (kj=0; kj<=Ny-1; kj++)
+	{for (kk=0; kk<=Nz-1; kk++)
+
+	LOP4d33r[t][ki][kj][kk]=LOP1dF33rr[ki*Ny*Nz+kj*Nz+kk];   //data saving
+
+	}
+	}
+	// End of cal. for Variant 3
+	// End of cal. for Variant 3                                         
+	}
+	}
+
+
+//////////////////////////////////////////////
+////*data preparing for Figure Output*////////
+//////////////////////////////////////////////
+
+
+void _output(double LOP4d31r[Nt2][Nx][Ny][Nz],double LOP4d32r[Nt2][Nx][Ny][Nz],double LOP4d33r[Nt2][Nx][Ny][Nz],complex LOP4d31c[Nt2][Nx][Ny][Nz],complex LOP4d32c[Nt2][Nx][Ny][Nz],complex LOP4d33c[Nt2][Nx][Ny][Nz])
+	{   
+		 double FE1dF31r[GN];
+		 double DFE1d31r[GN];
+		 double FE1d32r[GN],FE1dF32i[GN];
+		 double DFE1d32r[GN], DFE1dF32i[GN];
+		 double LOP1d32ri[GN];
+		 double FE1dF33i[GN];
+		 double  FE4d31r[Nt3][Nx][Ny][Nz], FE4d32r[Nt3][Nx][Ny][Nz], FE4d33r[Nt3][Nx][Ny][Nz];
+		 double  LOP4d42r[Nt3][Nx][Ny][Nz], LOP4d43r[Nt3][Nx][Ny][Nz];
+		 complex LOP4d43c[Nt3][Nx][Ny][Nz];
+		 /*double  LOP4d31r[Nt2][Nx][Ny][Nz], LOP4d32r[Nt2][Nx][Ny][Nz], LOP4d33r[Nt2][Nx][Ny][Nz];
+		 complex LOP4d31c[Nt2][Nx][Ny][Nz], LOP4d32c[Nt2][Nx][Ny][Nz], LOP4d33c[Nt2][Nx][Ny][Nz];*/
+
+		 double u,g;
+		 double Mol,Moll;
+		 double dm=0.1, e=0.3,v=0.16, GE=0.13,AT=0.6432, BT=2.84, CT=1.33;
+   
+		int i,j,k,t;
+ 		int r;
+		int ki,kj,kk;
+		double ri,rj,rk;
+		printf("------------Data Preparing For Figure Output AT END------  \n");
+		printf(" \n");
+/*
+		{for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		  printf("%d     ", i);
+		  printf(" \n");
+		}
+		printf(" \n");
+		}
+		printf(" \n");
+		}
+
+
+
+		{for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		  printf("%d     ", j);
+		  printf(" \n");
+		}
+		printf(" \n");
+		}
+		printf(" \n");
+		}
+
+		{for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		  printf("%d     ", k);
+		  printf(" \n");
+		}
+		printf(" \n");
+		}
+		printf(" \n");
+		}
+*/
+
+		//////LOP of Variant 1----ouput////////////
+		//////LOP of Variant 1----ouput////////////
+			printf("**************LOP of Variant 1----ouput*************  \n");
+		{for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		  printf("%10.6f    ",   LOP4d31r[Nt3][i][j][k]);
+		  printf(" \n");
+		}
+		printf(" \n");
+		}
+		printf(" \n");
+		}
+		//////LOP of Variant 2----ouput////////////
+		//////LOP of Variant 2----ouput////////////
+		printf("**************LOP of Variant 2----ouput*************\n");
+		{for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		  printf("%10.6f    ",   LOP4d32r[Nt3][i][j][k]);
+		  printf(" \n");
+		}
+		printf(" \n");
+		}
+		printf(" \n");
+		}
+
+		//////LOP of Variant 3----ouput////////////
+		//////LOP of Variant 3----ouput////////////
+		printf("**************LOP of Variant 3----ouput*************\n");
+		{for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		  printf("%10.6f    ",   LOP4d33r[Nt3][i][j][k]);
+		  printf(" \n");
+		}
+		printf(" \n");
+		}
+		printf(" \n");
+		}
+
+
+		/////////Energy output////////////
+		/////////Energy output////////////
+		/////////Energy output////////////
+		/////////Energy output////////////
+		double Etot[Nt3], Ech[Nt3],Estr[Nt3], Eint[Nt3];
+
+		///// Chemical free energy at different time/////
+
+		 for (t=1;t<=Nt3;t++)
+		{
+		 Ech[t]=0.0;
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		    
+		 Ech[t]=Ech[t]+AT*(pow(LOP4d31r[t][i][j][k],2)+pow(LOP4d32r[t][i][j][k],2)+pow(LOP4d33r[t][i][j][k],2))
+					  +BT*(pow(LOP4d31r[t][i][j][k],4)+pow(LOP4d32r[t][i][j][k],4)+pow(LOP4d33r[t][i][j][k],4))
+					  +CT*(pow(LOP4d31r[t][i][j][k],6)+pow(LOP4d32r[t][i][j][k],6)+pow(LOP4d33r[t][i][j][k],6));
+				
+		 
+		}
+		}
+		}
+		///// Strain energy at different time/////
+
+		 for (t=1;t<=Nt3;t++)
+		{
+		 Estr[t]=0.0;
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		    
+		 Estr[t]=Estr[t]+FE4d31r[t][i][j][k]+FE4d32r[t][i][j][k]+FE4d33r[t][i][j][k];
+		 
+		}
+		}
+		}
+
+		///// Interaction energy at different time/////
+
+		 for (t=1;t<=Nt3;t++)
+		{
+		 Eint[t]=0.0;
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		    
+		 Eint[t]=Eint[t]+6*GE*(pow(LOP4d31r[t][i][j][k],2)+pow(LOP4d32r[t][i][j][k],2)+pow(LOP4d33r[t][i][j][k],2))
+		 -6*GE*(LOP4d31r[t][i][j][k]*LOP4d32r[t][i][j][k]+LOP4d31r[t][i][j][k]*LOP4d33r[t][i][j][k]+LOP4d32r[t][i][j][k]*LOP4d33r[t][i][j][k]);
+		 
+		}
+		}
+		}
+
+		///// Total energy at different time/////
+
+		for (t=1;t<=Nt3;t++)
+		{
+		 
+		 Etot[t]=Ech[t]+Estr[t]+Eint[t];
+
+		}
+
+
+
+		for (t=1;t<=Nt3;t++)
+		{
+		      
+		 printf("%10.6f    ", Etot[t]);
+		 printf(" \n");
+
+		}
+		 printf(" \n");
+
+		/////End of Energy Calculation///// 
+		/////End of Energy Calculation/////
+		/////End of Energy Calculation/////
+
+
+
+		/////////Different Slice////////////
+		/////////Different Slice////////////
+		/////////Different Slice////////////
+		/////////Different Slice////////////
+		/////////Different Slice////////////
+		/////////Different Slice////////////
+
+		 double a;
+
+		/////Slice [1 -1 0]/////////
+		/////Slice [1 -1 0]/////////
+		printf("------[1 -1 0] slice V1-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (k=0; k<=Nz-1; k++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,i,k, LOP4d31r[Nt3][i][i][k] );
+		// printf(" \n");
+
+		}
+
+		printf("------[1 -1 0] slice V2-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (k=0; k<=Nz-1; k++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,i,k, LOP4d32r[Nt3][i][i][k] );
+		// printf(" \n");
+
+		}
+
+		printf("------[1 -1 0] slice V3-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (k=0; k<=Nz-1; k++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,i,k, LOP4d33r[Nt3][i][i][k] );
+		// printf(" \n");
+
+		}
+
+
+		/////Slice [0 0 1]/////////
+		/////Slice [0 0 1]/////////
+		printf("------[0 0 1] slice V1-------\n");
+
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,j,Nx-3, LOP4d31r[Nt3][i][j][Nx-3] );
+		 //printf(" \n");
+
+		}
+
+		 printf("------[0 0 1] slice V2-------\n");
+
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,j,Nx-3, LOP4d32r[Nt3][i][j][Nx-3] );
+		 //printf(" \n");
+
+		}
+
+		 printf("------[0 0 1] slice V3-------\n");
+
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,j,Nx-3, LOP4d33r[Nt3][i][j][Nx-3] );
+		 //printf(" \n");
+
+		}
+
+
+		/////Slice [1 1 0]/////////
+		/////Slice [1 1 0]/////////
+		printf("------[1 1 0] slice V1-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (k=0; k<=Nz-1; k++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,Nx-i,k, LOP4d31r[Nt3][i][Nx-i][k] );
+		// printf(" \n");
+		}
+
+		printf("------[1 1 0] slice V2-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (k=0; k<=Nz-1; k++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,Nx-i,k, LOP4d32r[Nt3][i][Nx-i][k] );
+		// printf(" \n");
+		}
+
+		printf("------[1 1 0] slice V3-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (k=0; k<=Nz-1; k++)
+
+		 printf("%d  %d  %d   %10.6f  \n    ",i,Nx-i,k, LOP4d33r[Nt3][i][Nx-i][k] );
+		// printf(" \n");
+		}
+
+
+		/////Slice [1 1 1]//////////
+		/////Slice [1 1 1]//////////
+		printf("------[1 1 1] slice-V1-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Nz-1; j++)
+		if (i<=Nx-j)
+		{
+			printf("%d  %d  %d   %10.6f  \n    ",i,j,Nx-i-j, LOP4d31r[Nt3][i][j][Nx-i-j]);
+		}
+		  
+		else a=0;
+
+		}
+
+
+		printf("------[1 1 1] slice-V2-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Nz-1; j++)
+		if (i<=Nx-j)
+		{
+			printf("%d  %d  %d   %10.6f  \n    ",i,j,Nx-i-j, LOP4d32r[Nt3][i][j][Nx-i-j]);
+		}
+		  
+		else a=0;
+
+		}
+
+		printf("------[1 1 1] slice-V3-------\n");
+
+		for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Nz-1; j++)
+		if (i<=Nx-j)
+		{
+			printf("%d  %d  %d   %10.6f  \n    ",i,j,Nx-i-j, LOP4d33r[Nt3][i][j][Nx-i-j]);
+		}
+		  
+		else a=0;
+
+		}
+
+		printf("   \n");
+
+		//////End of Different-Slice-Processing/////////////
+		//////End of Different-Slice-Processing/////////////
+		//////End of Different-Slice-Processing/////////////
+
+
+
+		/////volume fraction for different variants//////////
+		/////volume fraction for different variants//////////
+		/////volume fraction for different variants//////////
+		/////volume fraction for different variants//////////
+		/////volume fraction for different variants//////////
+		/////volume fraction for different variants//////////
+
+		double V1, V2, V3;
+		double VF1, VF2, VF3;
+		printf("++++++++++Volume fraction for Variant 1+++++++++++++++\n");
+
+		 V1=0.0;
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		if (LOP4d31r[Nt3][i][j][k]>0.5 || LOP4d32r[Nt3][i][j][k]<0.5 || LOP4d33r[Nt3][i][j][k]<0.5 ) 
+		{V1=V1+1.0;}
+		else V1=0.0;
+		 }
+		 }
+		VF1=V1/(Nx*Nx*Nx);
+		printf("Volume fraction for Variant 1=  %10.6f \n ", V1);
+		printf("Volume fraction for Variant 1=  %10.6f \n ", VF1);
+		printf("   \n");
+
+		printf("++++++++++Volume fraction for Variant 2+++++++++++++++\n");
+
+		 V2=0.0;
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		if (LOP4d32r[Nt3][i][j][k]>0.5 || LOP4d33r[Nt3][i][j][k]<0.5 || LOP4d31r[Nt3][i][j][k]<0.5 ) 
+		{V2=V2+1.0;}
+		else V2=0.0;
+		 }
+		 }
+		VF2=V2/(Nx*Nx*Nx);
+		printf("Volume fraction for Variant 1=  %10.6f \n ", V2);
+		printf("Volume fraction for Variant 2=  %10.6f \n ", VF2);
+		printf("   \n");
+
+		printf("++++++++++Volume fraction for Variant 3+++++++++++++++\n");
+
+		 V3=0.0;
+		 for (i=0; i<=Nx-1; i++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		if (LOP4d33r[Nt3][i][j][k]>0.5 || LOP4d32r[Nt3][i][j][k]<0.5 || LOP4d31r[Nt3][i][j][k]<0.5 ) 
+		{V3=V3+1.0;}
+		else V3=0.0;
+		 }
+		 }
+		VF3=V3/(Nx*Nx*Nx);
+		printf("Volume fraction for Variant 1=  %10.6f \n ", V3);
+		printf("Volume fraction for Variant 1=  %10.6f \n ", VF3);
+		printf("   \n");
+		////////////End of Volume Fraction Calculation///////////
+		////////////End of Volume Fraction Calculation///////////
+		////////////End of Volume Fraction Calculation///////////
+};
+	/////////End of the definition of Class Lop///////////
+
+
+  void main()
+  { 
+	 int i,j,k,t;
+ 	int r;
+    int ki,kj,kk;
+	double ri,rj,rk;
+ 
+	 double u,g;
+	 double Mol,Moll;
+	 double dm=0.1, e=0.3,v=0.16, GE=0.13,AT=0.6432, BT=2.84, CT=1.33;
+	 double  LOP4d11r[Nt1][Nx][Ny][Nz], LOP4d12r[Nt1][Nx][Ny][Nz],  LOP4d13r[Nt1][Nx][Ny][Nz];
+	 complex LOP4d11c[Nt1][Nx][Ny][Nz], LOP4d12c[Nt1][Nx][Ny][Nz],  LOP4d13c[Nt1][Nx][Ny][Nz];
+	 
+
+	 
+	
+	 double  LOP4d21r[Nt2][Nx][Ny][Nz], LOP4d22r[Nt2][Nx][Ny][Nz], LOP4d23r[Nt2][Nx][Ny][Nz];
+	 complex LOP4d21c[Nt2][Nx][Ny][Nz], LOP4d22c[Nt2][Nx][Ny][Nz], LOP4d23c[Nt2][Nx][Ny][Nz];
+	 
+
+
+	 double  LOP4d31r[Nt2][Nx][Ny][Nz], LOP4d32r[Nt2][Nx][Ny][Nz], LOP4d33r[Nt2][Nx][Ny][Nz];
+	 complex LOP4d31c[Nt2][Nx][Ny][Nz], LOP4d32c[Nt2][Nx][Ny][Nz], LOP4d33c[Nt2][Nx][Ny][Nz];
+
+
+	Pro1(LOP4d11r,LOP4d12r,LOP4d13r,LOP4d11c,LOP4d12c, LOP4d13c,LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c, LOP4d23c);        //(1)第一个步骤的函数调用
+
+	for(i=0;i<N;i++)                                                                                                            //(2) 第二步做100个循环
+	{
+		Pro2( LOP4d11r,LOP4d12r,LOP4d13r,LOP4d11c,LOP4d12c, LOP4d13c,LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c, LOP4d23c);
+	}
+
+
+
+
+       int z=2,l=0;
+     for(i=0;i<M;i++)
+	 { z++;
+		 printf("程序运行到第  %d 段，请等待。",z);
+       printf("\n  ");printf("\n  ");	printf("\n  ");
+       _input (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c,LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c); //(3) start
+       Calculation(LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);
+	   _output (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);  //(3)end
+       
+	   
+	   _input (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c,LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);
+       Calculation(LOP4d21r,LOP4d22r,LOP4d23r,LOP4d31c,LOP4d22c,LOP4d23c);
+       _output (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);  //(4)end
+	 }
+		ofstream OFM1L1("D://M1L1.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM1L1<<setw(12)<<LOP4d21r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM1L1<<endl;	  
+		}  
+		if (j=Ny-1) OFM1L1<<endl;
+		
+		}
+		OFM1L1.close();
+
+       ofstream OFM1L2("D://M1L2.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM1L2<<setw(12)<<LOP4d22r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM1L2<<endl;	  
+		}  
+		if (j=Ny-1) OFM1L2<<endl;
+		
+		}
+		OFM1L2.close();
+		 ofstream OFM1L3("D://M1L3.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM1L3<<setw(12)<<LOP4d23r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM1L3<<endl;	  
+		}  
+		if (j=Ny-1) OFM1L3<<endl;
+		
+		}
+		OFM1L3.close();
+
+
+//////////////////////////
+//////////////////////////
+//////////////////////////
+//////////////////////////
+     for(i=0;i<M;i++)
+	 {   z++;
+        printf("程序运行到第  %d 段，请等待。",z);
+       printf("\n  ");printf("\n  ");	printf("\n  ");
+       _input (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c,LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c); //(3) start
+       Calculation(LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);
+	   _output (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);  //(3)end
+       
+	   
+	   _input (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c,LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);
+       Calculation(LOP4d21r,LOP4d22r,LOP4d23r,LOP4d31c,LOP4d22c,LOP4d23c);
+       _output (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);  //(4)end
+	 }
+
+	 
+		ofstream OFM2L1("D://M2L1.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM2L1<<setw(12)<<LOP4d21r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM2L1<<endl;	  
+		}  
+		if (j=Ny-1) OFM2L1<<endl;
+		
+		}
+		OFM2L1.close();
+
+       ofstream OFM2L2("D://M2L2.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM2L2<<setw(12)<<LOP4d22r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM2L2<<endl;	  
+		}  
+		if (j=Ny-1) OFM2L2<<endl;
+		
+		}
+		OFM2L2.close();
+
+		 ofstream OFM2L3("D://M2L3.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM2L3<<setw(12)<<LOP4d23r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM2L3<<endl;	  
+		}  
+		if (j=Ny-1) OFM2L3<<endl;
+		
+		}
+		OFM2L3.close();
+
+        
+
+//////////////////////////
+//////////////////////////
+//////////////////////////
+//////////////////////////
+     for(i=0;i<M;i++)
+	 {   z++;
+		 printf("程序运行到第  %d 段，请等待。",z);
+       printf("\n  ");printf("\n  ");	printf("\n  ");
+       _input (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c,LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c); //(3) start
+       Calculation(LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);
+	   _output (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c);  //(3)end
+       
+	   
+	   _input (LOP4d31r,LOP4d32r,LOP4d33r,LOP4d31c,LOP4d32c,LOP4d33c,LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);
+       Calculation(LOP4d21r,LOP4d22r,LOP4d23r,LOP4d31c,LOP4d22c,LOP4d23c);
+       _output (LOP4d21r,LOP4d22r,LOP4d23r,LOP4d21c,LOP4d22c,LOP4d23c);  //(4)end
+	}
+		ofstream OFM3L1("D://M3L1.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM3L1<<setw(12)<<LOP4d21r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM3L1<<endl;	  
+		}  
+		if (j=Ny-1) OFM3L1<<endl;
+		
+		}
+		OFM3L1.close();
+
+       ofstream OFM3L2("D://M3L2.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM3L2<<setw(12)<<LOP4d22r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM3L2<<endl;	  
+		}  
+		if (j=Ny-1) OFM3L2<<endl;
+		
+		}
+		OFM3L2.close();
+
+		 ofstream OFM3L3("D://M3L3.txt");
+ 		 for (l=0; l<=Nx-1; l++)
+		{for (j=0; j<=Ny-1; j++)
+		{for (k=0; k<=Nz-1; k++)
+		OFM3L3<<setw(12)<<LOP4d23r[Nt3][l][j][k]<<"    ";
+		if (k=Nz-1) OFM3L3<<endl;	  
+		}  
+		if (j=Ny-1) OFM3L3<<endl;
+		
+		}
+		OFM3L3.close();
+
+
+     
+
+
+
+}
